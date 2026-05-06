@@ -1,0 +1,8 @@
+{
+  "symbol": "600519",
+  "strategy_name": "ma_cross",
+  "trade_date": "2024-03-29",
+  "action": "WAIT",
+  "target_position": 0.0,
+  "reason": "策略当前没有开仓信号"
+}

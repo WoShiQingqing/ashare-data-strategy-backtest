@@ -1,0 +1,19 @@
+{
+  "symbol": "600519",
+  "strategy_name": "ma_cross",
+  "metrics": {
+    "annual_return": -0.17335995708302254,
+    "max_drawdown": -0.05347647894045615,
+    "sharpe_ratio": -2.105365174194529,
+    "win_rate": 0.0,
+    "turnover_rate": 0.06896551724137931
+  },
+  "extra": {
+    "chart_path": "output/plots/600519_ma_cross_report.png",
+    "signal_path": "output/signals/600519_ma_cross_signal.json",
+    "strategy_parameters": {
+      "short_window": 5,
+      "long_window": 20
+    }
+  }
+}

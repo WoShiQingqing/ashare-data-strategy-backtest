@@ -1,0 +1,26 @@
+{
+  "portfolio_name": "core_pool",
+  "strategy_name": "mean_reversion",
+  "metrics": {
+    "annual_return": 0.16717817697429993,
+    "max_drawdown": -0.28260391999225265,
+    "sharpe_ratio": 0.8004869920070428,
+    "win_rate": 0.17938144329896907,
+    "turnover_rate": 0.32600229095074457
+  },
+  "extra": {
+    "start_date": null,
+    "end_date": null,
+    "strategy_parameters": {
+      "window": 15,
+      "entry_z": 1.5,
+      "exit_z": 0.5
+    },
+    "chart_path": "output/plots/core_pool_mean_reversion_portfolio.png"
+  },
+  "symbols": [
+    "000001",
+    "600519",
+    "601318"
+  ]
+}

@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store
+.env
+build/
+dist/
+output/*.db
+output/matplotlib/
+output/plots/
+output/signals/
+output/reports/
+*.pyc
+*.egg-info/
