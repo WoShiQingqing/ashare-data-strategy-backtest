@@ -1,4 +1,6 @@
 # 数据库连接和建表入口
+# 虽然项目已经把表结构切到了 Core
+# 但上层依然统一从这里拿 engine 和初始化数据库
 
 from __future__ import annotations
 
@@ -8,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 
 from ashare_backtest.config import get_settings
 
-from .base import Base
+from .base import metadata
 
 
 def get_engine(database_url: str | None = None, echo: bool = False) -> Engine:
@@ -24,15 +26,13 @@ def get_engine(database_url: str | None = None, echo: bool = False) -> Engine:
 
 
 def get_session_factory(engine: Engine | None = None) -> sessionmaker:
-    # 返回 session 工厂，方便后续需要 ORM session 时复用
-    # 这版项目大多直接用 engine + SQL
-    # 但把 session 工厂留下，后续扩展 ORM 写法会更方便
+    # 这个函数先保留，主要是为了兼容现有接口
+    # 当前项目主体其实已经不依赖 ORM session
     return sessionmaker(bind=engine or get_engine(), autoflush=False, autocommit=False)
 
 
 def init_db(engine: Engine | None = None) -> Engine:
-    # 根据 ORM 模型初始化数据库表
-    # 第一次跑项目时，CLI 会先调用这里建表
+    # 根据 Core 表结构初始化数据库表
     active_engine = engine or get_engine()
-    Base.metadata.create_all(bind=active_engine)
+    metadata.create_all(bind=active_engine)
     return active_engine
