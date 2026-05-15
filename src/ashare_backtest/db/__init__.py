@@ -1,9 +1,12 @@
-# 这里集中暴露数据库模型和连接入口
-# 上层业务代码只需要依赖这一层导出的名字
+# 数据库层对外导出
+# 这里暴露的是 Core 表对象，不再是 ORM 模型类
+
+from .base import metadata
 from .models import BacktestRun, StockDailyBar, StrategySignal
 from .session import get_engine, get_session_factory, init_db
 
 __all__ = [
+    "metadata",
     "BacktestRun",
     "StockDailyBar",
     "StrategySignal",
