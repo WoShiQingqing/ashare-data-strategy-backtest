@@ -1,90 +1,81 @@
 # 数据库表结构定义
+# 这一版不再使用 ORM class
+# 直接用 SQLAlchemy Core 的 Table 来描述表结构
 
-from __future__ import annotations
+from sqlalchemy import (
+    Column,
+    Date,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+    func,
+)
 
-from datetime import datetime
-
-from sqlalchemy import Date, DateTime, Float, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from .base import Base
-
-
-class StockDailyBar(Base):
-    # A 股日线行情表
-
-    __tablename__ = "stock_daily_bar"
-
-    # 自增主键主要是为了数据库层处理方便
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    # symbol + trade_date 才是真正的业务主键
-    symbol: Mapped[str] = mapped_column(String(16), index=True)
-    trade_date: Mapped[Date] = mapped_column(Date, index=True)
-
-    # 下面是最基本的 OHLCV 字段
-    open: Mapped[float] = mapped_column(Float)
-    high: Mapped[float] = mapped_column(Float)
-    low: Mapped[float] = mapped_column(Float)
-    close: Mapped[float] = mapped_column(Float)
-    volume: Mapped[float] = mapped_column(Float, default=0.0)
-    amount: Mapped[float] = mapped_column(Float, default=0.0)
-
-    # 下面这些字段不是每个源都稳定提供
-    # 所以允许为空
-    amplitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    pct_change: Mapped[float | None] = mapped_column(Float, nullable=True)
-    price_change: Mapped[float | None] = mapped_column(Float, nullable=True)
-    turnover_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
-    source: Mapped[str] = mapped_column(String(32), default="akshare")
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    __table_args__ = (
-        # 同一只股票同一天只能有一条日线记录
-        UniqueConstraint("symbol", "trade_date", name="uq_stock_daily_bar_symbol_date"),
-    )
+from .base import metadata
 
 
-class StrategySignal(Base):
-    # 策略信号快照表，用于回溯某天策略给出的仓位建议
-
-    __tablename__ = "strategy_signal"
-
-    # 这里保留 signal 和 score
-    # signal 用于回测复现，score 用于后续排序或调试
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(16), index=True)
-    strategy_name: Mapped[str] = mapped_column(String(64), index=True)
-    trade_date: Mapped[Date] = mapped_column(Date, index=True)
-    signal: Mapped[float] = mapped_column(Float)
-    score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    __table_args__ = (
-        # 同一策略在同一股票同一天只保留一条信号
-        UniqueConstraint(
-            "symbol",
-            "strategy_name",
-            "trade_date",
-            name="uq_strategy_signal_symbol_name_date",
-        ),
-    )
+# A 股日线行情表
+# symbol + trade_date 是最重要的业务唯一键
+StockDailyBar = Table(
+    "stock_daily_bar",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("symbol", String(16), index=True, nullable=False),
+    Column("trade_date", Date, index=True, nullable=False),
+    Column("open", Float, nullable=False),
+    Column("high", Float, nullable=False),
+    Column("low", Float, nullable=False),
+    Column("close", Float, nullable=False),
+    Column("volume", Float, nullable=False, default=0.0),
+    Column("amount", Float, nullable=False, default=0.0),
+    Column("amplitude", Float, nullable=True),
+    Column("pct_change", Float, nullable=True),
+    Column("price_change", Float, nullable=True),
+    Column("turnover_rate", Float, nullable=True),
+    Column("source", String(32), nullable=False, default="akshare"),
+    Column("created_at", DateTime, server_default=func.now(), nullable=False),
+    UniqueConstraint("symbol", "trade_date", name="uq_stock_daily_bar_symbol_date"),
+)
 
 
-class BacktestRun(Base):
-    # 回测运行摘要表，用于保存每次实验的指标和参数
+# 策略信号快照表
+# 用来保留某一天、某个策略到底给出了什么信号
+StrategySignal = Table(
+    "strategy_signal",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("symbol", String(16), index=True, nullable=False),
+    Column("strategy_name", String(64), index=True, nullable=False),
+    Column("trade_date", Date, index=True, nullable=False),
+    Column("signal", Float, nullable=False),
+    Column("score", Float, nullable=True),
+    Column("created_at", DateTime, server_default=func.now(), nullable=False),
+    UniqueConstraint(
+        "symbol",
+        "strategy_name",
+        "trade_date",
+        name="uq_strategy_signal_symbol_name_date",
+    ),
+)
 
-    __tablename__ = "backtest_run"
 
-    # 这个表不保存逐日明细
-    # 它只记录一次回测跑完后的摘要快照
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    symbol: Mapped[str] = mapped_column(String(16), index=True)
-    strategy_name: Mapped[str] = mapped_column(String(64), index=True)
-    parameters: Mapped[str | None] = mapped_column(Text, nullable=True)
-    annual_return: Mapped[float | None] = mapped_column(Float, nullable=True)
-    max_drawdown: Mapped[float | None] = mapped_column(Float, nullable=True)
-    sharpe_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
-    win_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
-    turnover_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+# 回测运行摘要表
+# 只保留每次实验的摘要指标和参数，不保留逐日明细
+BacktestRun = Table(
+    "backtest_run",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("symbol", String(16), index=True, nullable=False),
+    Column("strategy_name", String(64), index=True, nullable=False),
+    Column("parameters", Text, nullable=True),
+    Column("annual_return", Float, nullable=True),
+    Column("max_drawdown", Float, nullable=True),
+    Column("sharpe_ratio", Float, nullable=True),
+    Column("win_rate", Float, nullable=True),
+    Column("turnover_rate", Float, nullable=True),
+    Column("created_at", DateTime, server_default=func.now(), nullable=False),
+)
