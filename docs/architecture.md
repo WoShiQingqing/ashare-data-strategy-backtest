@@ -45,6 +45,18 @@
 - 改字段规则，只动 `cleaning.py`
 - 改数据库读写方式，只动 `repository.py`
 
+这里我最后把 `repository.py` 也收成了纯 `SQLAlchemy Core`
+
+也就是它现在主要做的是
+
+- 从 `db/models.py` 拿 `Table` 对象
+- 用 `select / insert / delete` 组织数据库操作
+- 把 DataFrame 和数据库记录互相转换
+
+这样仓库层的边界就很清楚
+它不是 ORM 实体仓库
+就是一层很直接的数据访问封装
+
 #### `strategies/`
 
 策略层只做一件事
@@ -121,6 +133,23 @@
 - 定义表结构
 - 建立数据库连接
 
+这里我明确选的是 `SQLAlchemy Core` 而不是 ORM
+
+也就是
+
+- `base.py` 里放 `MetaData`
+- `models.py` 里放 `Table(...)`
+- `session.py` 里只保留 `engine` 和 `init_db`
+- 不维护 ORM class
+- 不维护 `sessionmaker`
+- 不做对象状态同步
+
+这么拆的好处是
+
+- 表结构和数据库操作都更贴近真实 SQL
+- 项目里每次查库和写库到底做了什么更容易讲清楚
+- SQLite 切 MySQL 时不需要改上层业务逻辑
+
 以后不管是 SQLite 切 MySQL
 还是加新表
 都有一个固定位置能找到
@@ -160,6 +189,9 @@ python -m ashare_backtest.cli backtest --symbol 600519 --strategy ma_cross
 
 如果要转真实项目
 再切 MySQL 就行
+
+底层这一层我已经尽量做成数据库无关的 Core 风格
+所以切换数据库时，主要只是换连接字符串和初始化方式
 
 ## 如果后面继续扩展
 
