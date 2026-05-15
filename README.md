@@ -56,6 +56,29 @@ A股抓取回测/
 - `services` 是把上面这些串起来
 - `cli.py` 是命令行入口
 
+## 数据库这一层我最后是怎么定的
+
+这里我最后统一成了 `SQLAlchemy Core`
+
+也就是
+
+- 表结构用 `Table(...)` 定义
+- 建表用 `MetaData.create_all()`
+- 读写用 `select / insert / delete`
+- 不用 ORM class
+- 不用 `sessionmaker`
+- 不做对象映射那一套
+
+我这样定主要是因为这个项目本质上更像一个数据管道加回测工具
+数据库层更适合走直接 明确 可控 的 Core 风格
+
+对我这个项目来说好处很直接
+
+- 表结构长什么样一眼能看懂
+- 查询和写入语句更贴近真实 SQL
+- SQLite 和 MySQL 两边切换更自然
+- 不需要为了几个表去维护一套 ORM 对象状态
+
 ## 环境要求
 
 统一切到Python 3.11
@@ -111,6 +134,9 @@ PYTHONPATH=src MPLBACKEND=Agg MPLCONFIGDIR=output/matplotlib \
 python -m ashare_backtest.cli init-db
 ```
 
+这里做的事情比较简单
+就是按 `db/models.py` 里那几张 Core 表定义把表建出来
+
 ### 4. 抓一只股票
 
 ```bash
@@ -164,7 +190,9 @@ mysql -u root -p < sql/init_mysql.sql
 PYTHONPATH=src python -m ashare_backtest.cli init-db
 ```
 
-业务代码本身不用改
+这里依然不需要改业务代码
+因为业务层拿到的只是统一的 engine
+底层具体连 SQLite 还是 MySQL 都在 `config` 和 `db` 里收口了
 
 ## 输出结果都在哪
 
@@ -186,7 +214,7 @@ PYTHONPATH=src python -m ashare_backtest.cli init-db
 - `strategy_signal`
 - `backtest_run`
 
-可以回头查某次实验到底用了什么参数、给过什么信号
+可以回头查某次实验到底用了什么参数 给过什么信号 跑出了什么摘要指标
 
 ## 如果继续往下做
 
