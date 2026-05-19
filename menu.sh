@@ -45,7 +45,7 @@ ensure_python311() {
 ensure_venv() {
   if [[ ! -x "$PYTHON_BIN" ]]; then
     printf '\n还没有检测到 .venv\n'
-    printf '准备使用当前 python 创建虚拟环境\n'
+    printf '准备用当前 python 创建虚拟环境\n'
     ensure_python311 || return 1
     python -m venv "$VENV_DIR" || return 1
   fi
@@ -65,12 +65,15 @@ read_common_dates() {
   read -r START_DATE
   printf '结束日期 直接回车默认 20251231: '
   read -r END_DATE
+  # macOS 自带 bash 3.2 在 set -u 下对空数组展开不稳定
+  # 这里把界面里展示的默认日期真正落成变量值
+  # 这样后面拼命令时就不会因为空 DATE_ARGS 崩掉
+  [[ -z "$START_DATE" ]] && START_DATE="20180101"
+  [[ -z "$END_DATE" ]] && END_DATE="20251231"
 }
 
 build_date_args() {
-  DATE_ARGS=()
-  [[ -n "${START_DATE:-}" ]] && DATE_ARGS+=(--start "$START_DATE")
-  [[ -n "${END_DATE:-}" ]] && DATE_ARGS+=(--end "$END_DATE")
+  DATE_ARGS=(--start "$START_DATE" --end "$END_DATE")
 }
 
 read_strategy() {
