@@ -1,7 +1,8 @@
 # 数据层仓库函数
 # 这一层专门负责数据库读写
-# 现在统一使用 SQLAlchemy Core 的 Table 和语句构造器
-# 不再混用 ORM 风格或者手写文本 SQL
+# 表结构定义仍然放在 db/models.py 里
+# 但真正的增删改查这里统一写成原生 SQL 语句形式
+# 这样查库和写库的意图会更直接
 
 from __future__ import annotations
 
@@ -9,10 +10,8 @@ from datetime import date
 import json
 
 import pandas as pd
-from sqlalchemy import delete, distinct, insert, select
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
-
-from ashare_backtest.db import BacktestRun, StockDailyBar, StrategySignal
 
 
 def _normalize_date(value: str | date | None) -> str | None:
@@ -29,8 +28,8 @@ def _normalize_date(value: str | date | None) -> str | None:
 
 
 def _to_python_date(value: str | date | None) -> date | None:
-    # 把外部传进来的日期统一转成 Python date
-    # Core 的 Date 列直接配合 date 对象最稳妥
+    # 把外部日期统一转成 Python date
+    # 这样 SQL 参数在 SQLite 和 MySQL 下都更稳妥
     normalized = _normalize_date(value)
     if normalized is None:
         return None
@@ -38,8 +37,8 @@ def _to_python_date(value: str | date | None) -> date | None:
 
 
 def _frame_to_records(df: pd.DataFrame, columns: list[str]) -> list[dict[str, object]]:
-    # 把 DataFrame 转成适合 Core insert 的记录列表
-    # 同时把 NaN 清成 None 避免数据库层出现奇怪空值表现
+    # 把 DataFrame 转成数据库批量写入需要的记录列表
+    # 同时把 NaN 清成 None 避免数据库里出现奇怪空值
     payload = df.loc[:, columns].copy()
     payload = payload.where(pd.notna(payload), None)
     if "trade_date" in payload.columns:
@@ -49,8 +48,8 @@ def _frame_to_records(df: pd.DataFrame, columns: list[str]) -> list[dict[str, ob
 
 def upsert_daily_bars(df: pd.DataFrame, engine: Engine) -> int:
     # 按 symbol 和日期区间覆盖写入日线
-    # 这里依然采用先删后插的简单策略
-    # 对日频项目来说可读性和稳定性比复杂 upsert 更重要
+    # 这里继续采用先删后插的简单策略
+    # 日频项目优先追求可读性和稳定性
     if df.empty:
         return 0
 
@@ -76,16 +75,35 @@ def upsert_daily_bars(df: pd.DataFrame, engine: Engine) -> int:
         ],
     )
 
+    delete_sql = text(
+        """
+        DELETE FROM stock_daily_bar
+        WHERE symbol = :symbol
+          AND trade_date BETWEEN :start_date AND :end_date
+        """
+    )
+    insert_sql = text(
+        """
+        INSERT INTO stock_daily_bar (
+            symbol, trade_date, open, high, low, close,
+            volume, amount, amplitude, pct_change,
+            price_change, turnover_rate, source
+        ) VALUES (
+            :symbol, :trade_date, :open, :high, :low, :close,
+            :volume, :amount, :amplitude, :pct_change,
+            :price_change, :turnover_rate, :source
+        )
+        """
+    )
+
     with engine.begin() as connection:
         # 先删掉同一只股票在这段区间内的旧数据
         # 再整体插入新数据
         connection.execute(
-            delete(StockDailyBar).where(
-                StockDailyBar.c.symbol == symbol,
-                StockDailyBar.c.trade_date.between(start_date, end_date),
-            )
+            delete_sql,
+            {"symbol": symbol, "start_date": start_date, "end_date": end_date},
         )
-        connection.execute(insert(StockDailyBar), records)
+        connection.execute(insert_sql, records)
 
     return len(records)
 
@@ -98,39 +116,29 @@ def load_daily_bars(
 ) -> pd.DataFrame:
     # 读取单只股票日线
     # 回测前的数据入口基本都会经过这里
-    normalized_symbol = str(symbol).zfill(6)
-    stmt = (
-        select(
-            StockDailyBar.c.symbol,
-            StockDailyBar.c.trade_date,
-            StockDailyBar.c.open,
-            StockDailyBar.c.high,
-            StockDailyBar.c.low,
-            StockDailyBar.c.close,
-            StockDailyBar.c.volume,
-            StockDailyBar.c.amount,
-            StockDailyBar.c.amplitude,
-            StockDailyBar.c.pct_change,
-            StockDailyBar.c.price_change,
-            StockDailyBar.c.turnover_rate,
-            StockDailyBar.c.source,
-        )
-        .where(StockDailyBar.c.symbol == normalized_symbol)
-        .order_by(StockDailyBar.c.trade_date)
-    )
+    query = """
+        SELECT symbol, trade_date, open, high, low, close, volume, amount,
+               amplitude, pct_change, price_change, turnover_rate, source
+        FROM stock_daily_bar
+        WHERE symbol = :symbol
+    """
+    params: dict[str, object] = {"symbol": str(symbol).zfill(6)}
 
     if start_date:
-        stmt = stmt.where(StockDailyBar.c.trade_date >= _to_python_date(start_date))
+        query += " AND trade_date >= :start_date"
+        params["start_date"] = _to_python_date(start_date)
     if end_date:
-        stmt = stmt.where(StockDailyBar.c.trade_date <= _to_python_date(end_date))
+        query += " AND trade_date <= :end_date"
+        params["end_date"] = _to_python_date(end_date)
+
+    query += " ORDER BY trade_date"
 
     with engine.begin() as connection:
-        rows = connection.execute(stmt).mappings().all()
+        df = pd.read_sql(text(query), con=connection, params=params)
 
-    if not rows:
-        return pd.DataFrame()
+    if df.empty:
+        return df
 
-    df = pd.DataFrame(rows)
     # 统一转回 pandas 时间戳
     # 策略层和画图层处理起来会更顺手
     df["trade_date"] = pd.to_datetime(df["trade_date"])
@@ -144,7 +152,7 @@ def load_many_daily_bars(
     end_date: str | None = None,
 ) -> dict[str, pd.DataFrame]:
     # 批量读取多只股票日线
-    # 这里继续返回按 symbol 分组的字典
+    # 继续返回按 symbol 分组的字典
     # 这样组合回测层不需要关心数据库细节
     return {
         str(symbol).zfill(6): load_daily_bars(
@@ -159,9 +167,15 @@ def load_many_daily_bars(
 
 def list_available_symbols(engine: Engine) -> list[str]:
     # 列出已经入库的股票代码
-    stmt = select(distinct(StockDailyBar.c.symbol)).order_by(StockDailyBar.c.symbol)
+    query = text(
+        """
+        SELECT DISTINCT symbol
+        FROM stock_daily_bar
+        ORDER BY symbol
+        """
+    )
     with engine.begin() as connection:
-        rows = connection.execute(stmt).all()
+        rows = connection.execute(query).fetchall()
     return [row[0] for row in rows]
 
 
@@ -185,16 +199,36 @@ def upsert_strategy_signals(df: pd.DataFrame, engine: Engine) -> int:
     end_date = _to_python_date(payload["trade_date"].max())
     records = _frame_to_records(payload, ["symbol", "strategy_name", "trade_date", "signal", "score"])
 
+    delete_sql = text(
+        """
+        DELETE FROM strategy_signal
+        WHERE symbol = :symbol
+          AND strategy_name = :strategy_name
+          AND trade_date BETWEEN :start_date AND :end_date
+        """
+    )
+    insert_sql = text(
+        """
+        INSERT INTO strategy_signal (
+            symbol, strategy_name, trade_date, signal, score
+        ) VALUES (
+            :symbol, :strategy_name, :trade_date, :signal, :score
+        )
+        """
+    )
+
     with engine.begin() as connection:
         # 同一只股票同一套策略在同一天只保留一条快照
         connection.execute(
-            delete(StrategySignal).where(
-                StrategySignal.c.symbol == symbol,
-                StrategySignal.c.strategy_name == strategy_name,
-                StrategySignal.c.trade_date.between(start_date, end_date),
-            )
+            delete_sql,
+            {
+                "symbol": symbol,
+                "strategy_name": strategy_name,
+                "start_date": start_date,
+                "end_date": end_date,
+            },
         )
-        connection.execute(insert(StrategySignal), records)
+        connection.execute(insert_sql, records)
 
     return len(records)
 
@@ -219,5 +253,16 @@ def save_backtest_run(
         "win_rate": metrics.get("win_rate"),
         "turnover_rate": metrics.get("turnover_rate"),
     }
+    insert_sql = text(
+        """
+        INSERT INTO backtest_run (
+            symbol, strategy_name, parameters,
+            annual_return, max_drawdown, sharpe_ratio, win_rate, turnover_rate
+        ) VALUES (
+            :symbol, :strategy_name, :parameters,
+            :annual_return, :max_drawdown, :sharpe_ratio, :win_rate, :turnover_rate
+        )
+        """
+    )
     with engine.begin() as connection:
-        connection.execute(insert(BacktestRun).values(**payload))
+        connection.execute(insert_sql, payload)
