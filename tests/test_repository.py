@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 import pandas as pd
-from sqlalchemy import func, select
+from sqlalchemy import text
 
 from ashare_backtest.data.repository import (
     _normalize_date,
@@ -13,7 +13,6 @@ from ashare_backtest.data.repository import (
     upsert_daily_bars,
     upsert_strategy_signals,
 )
-from ashare_backtest.db import BacktestRun, StrategySignal
 from ashare_backtest.db.session import get_engine, init_db
 
 
@@ -74,8 +73,8 @@ def test_can_save_and_load_bars_signals_and_runs():
     )
 
     with engine.begin() as connection:
-        signal_count = connection.execute(select(func.count()).select_from(StrategySignal)).scalar_one()
-        run_count = connection.execute(select(func.count()).select_from(BacktestRun)).scalar_one()
+        signal_count = connection.execute(text("SELECT COUNT(*) FROM strategy_signal")).scalar_one()
+        run_count = connection.execute(text("SELECT COUNT(*) FROM backtest_run")).scalar_one()
 
     assert signal_count == 2
     assert run_count == 1
