@@ -58,26 +58,28 @@ A股抓取回测/
 
 ## 数据库这一层我最后是怎么定的
 
-这里我最后统一成了 `SQLAlchemy Core`
+这里我最后拆成了两部分
+
+- 表结构定义用 `SQLAlchemy Core`
+- 实际数据库读写用原生 SQL 语句
 
 也就是
 
-- 表结构用 `Table(...)` 定义
-- 建表用 `MetaData.create_all()`
-- 读写用 `select / insert / delete`
+- 表结构还是用 `Table(...)` 定义
+- 建表还是用 `MetaData.create_all()`
+- 真正查库和写库时，仓库层直接写 `SELECT` `INSERT` `DELETE` 这种 SQL 文本
 - 不用 ORM class
 - 不用 `sessionmaker`
 - 不做对象映射那一套
 
 我这样定主要是因为这个项目本质上更像一个数据管道加回测工具
-数据库层更适合走直接 明确 可控 的 Core 风格
 
-对我这个项目来说好处很直接
+对我来说最顺手的方式是
 
-- 表结构长什么样一眼能看懂
-- 查询和写入语句更贴近真实 SQL
-- SQLite 和 MySQL 两边切换更自然
-- 不需要为了几个表去维护一套 ORM 对象状态
+- 表结构集中在一处定义
+- 读写逻辑直接写成 SQL
+- 看代码时一眼就知道它到底在查什么 写什么
+- SQLite 和 MySQL 两边切换也比较自然
 
 ## 环境要求
 
@@ -135,7 +137,7 @@ python -m ashare_backtest.cli init-db
 ```
 
 这里做的事情比较简单
-就是按 `db/models.py` 里那几张 Core 表定义把表建出来
+就是按 `db/models.py` 里那几张表定义把表建出来
 
 ### 4. 抓一只股票
 
