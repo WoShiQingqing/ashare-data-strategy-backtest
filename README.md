@@ -1,6 +1,6 @@
 # A股抓取回测
 
-## 这个项目现在能做什么
+## 这个项目能做什么
 
 1. 抓 A 股日线
 2. 把日线存到 SQLite 或 MySQL
@@ -20,7 +20,7 @@
 - `mean_reversion`
 - `bollinger_band`
 
-## 怎么拆项目结构
+## 项目结构
 
 ```text
 A股抓取回测/
@@ -56,30 +56,14 @@ A股抓取回测/
 - `services` 是把上面这些串起来
 - `cli.py` 是命令行入口
 
-## 数据库这一层我最后是怎么定的
-
-这里我最后拆成了两部分
+## 数据库
 
 - 表结构定义用 `SQLAlchemy Core`
 - 实际数据库读写用原生 SQL 语句
 
-也就是
-
 - 表结构还是用 `Table(...)` 定义
 - 建表还是用 `MetaData.create_all()`
 - 真正查库和写库时，仓库层直接写 `SELECT` `INSERT` `DELETE` 这种 SQL 文本
-- 不用 ORM class
-- 不用 `sessionmaker`
-- 不做对象映射那一套
-
-我这样定主要是因为这个项目本质上更像一个数据管道加回测工具
-
-对我来说最顺手的方式是
-
-- 表结构集中在一处定义
-- 读写逻辑直接写成 SQL
-- 看代码时一眼就知道它到底在查什么 写什么
-- SQLite 和 MySQL 两边切换也比较自然
 
 ## 环境要求
 
@@ -89,16 +73,14 @@ A股抓取回测/
 - SQLite 或 MySQL
 - 默认数据源是 AkShare
 
-## 最省事的启动方式
-
-如果不想记命令，直接用菜单脚本就行
+## 菜单启动
 
 ```bash
 bash menu.sh
 ```
 
-它会给一个中文菜单
-像下面这些操作都可以直接选编号
+中文菜单
+选编号进行以下操作
 
 - 创建虚拟环境
 - 安装依赖
@@ -109,7 +91,7 @@ bash menu.sh
 - 生成模拟信号
 - 跑测试
 
-## 如果想手动跑命令
+## 手动跑命令
 
 ### 1. 创建虚拟环境
 
@@ -127,7 +109,6 @@ cp .env.example .env
 ```
 
 默认配的是 SQLite
-如果只是先跑通项目，直接用这个最省事
 
 ### 3. 初始化数据库表
 
@@ -136,7 +117,6 @@ PYTHONPATH=src MPLBACKEND=Agg MPLCONFIGDIR=output/matplotlib \
 python -m ashare_backtest.cli init-db
 ```
 
-这里做的事情比较简单
 就是按 `db/models.py` 里那几张表定义把表建出来
 
 ### 4. 抓一只股票
@@ -167,9 +147,9 @@ PYTHONPATH=src MPLBACKEND=Agg MPLCONFIGDIR=output/matplotlib \
 python -m ashare_backtest.cli paper --symbol 600519 --strategy mean_reversion --window 20 --entry-z 1.5 --exit-z 0.5
 ```
 
-## 如果想切 MySQL
+## 切 MySQL
 
-只需要改 `.env`
+改 `.env`
 
 ```bash
 DB_BACKEND=mysql
@@ -192,9 +172,8 @@ mysql -u root -p < sql/init_mysql.sql
 PYTHONPATH=src python -m ashare_backtest.cli init-db
 ```
 
-这里依然不需要改业务代码
-因为业务层拿到的只是统一的 engine
-底层具体连 SQLite 还是 MySQL 都在 `config` 和 `db` 里收口了
+业务层拿到的是统一的 engine
+底层具体连 SQLite 还是 MySQL 都在 `config` 和 `db` 里收口
 
 ## 输出结果都在哪
 
@@ -203,34 +182,19 @@ PYTHONPATH=src python -m ashare_backtest.cli init-db
 - `output/signals/`
 - `output/reports/`
 
-这些目录我默认不会 git 进仓库
-因为它们本质上是运行产物，不是源码
 
-如果只是想让别人快速知道跑完以后大概会产出什么
-我更倾向于保留一个很小的样例目录
+样例目录
 
 - `examples/sample_outputs/`
 
-数据库里还会存两类很有用的业务结果
+数据库里还会存两类业务结果
 
 - `strategy_signal`
 - `backtest_run`
 
 可以回头查某次实验到底用了什么参数 给过什么信号 跑出了什么摘要指标
 
-## 如果继续往下做
 
-大概率会优先做这些
-
-1. 因子排序和定期调仓
-2. 更合理的组合约束
-3. 参数搜索
-4. Web 页面
-5. 更完整的实验记录
-
-## 还有一份架构说明
-
-看怎么拆模块的
-可以看这份
+## 架构说明
 
 - [架构说明](docs/architecture.md)
